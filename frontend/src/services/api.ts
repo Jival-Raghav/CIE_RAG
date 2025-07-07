@@ -1,4 +1,9 @@
-import axios from 'axios';
+// this code is a helper module that makes it easy to connect our React frontend with FastAPI
+// uses a library called axios to send and receive HTTP requests
+// sets up a way for React App to send chat messages to the backend and receive the AI responses
+// organizes our code such that all requests occur in one place
+
+import axios from 'axios'; // talks to server to get/send data , basically letting your frontend talk to the backend
 
 const API_BASE_URL = 'http://localhost:8000'; // Your FastAPI backend URL
 

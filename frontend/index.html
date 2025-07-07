@@ -1,95 +1,13 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RAG Chat Application</title>
-    <link rel="stylesheet" href="style.css">
-</head>
-<body>
-    <div class="header" id="headerText">
-        Login Screen
-    </div>
-    
-    <!-- LOGIN SCREEN -->
-    <div class="login-container screen" id="loginScreen">
-        <img src="Vector.svg" class="leaf-icon">
-        
-        <div class="login-card">
-            <h1 class="welcome-title">Welcome Back</h1>
-            
-            <form id="loginForm">
-                <div class="form-group">
-                    <input type="text" class="form-input" id="usernameInput" placeholder="Username" required>
-                </div>
-                
-                <div class="form-group">
-                    <input type="password" class="form-input" id="passwordInput" placeholder="Password" required>
-                </div>
-                
-                <button type="submit" class="sign-in-btn" id="signInBtn">Sign In</button>
-                <div class="error-message" id="errorMessage">Invalid username or password</div>
-            </form>
-        </div>
-    </div>
-
-    <!-- CHAT SCREEN -->
-    <div class="chat-container screen" id="chatScreen">
-        <div class="top-bar">
-            <div style="display: flex; align-items: center; gap: 16px;">
-                <img src="Vector.svg" class="chat-leaf-icon">
-                
-                <svg class="new-chat-btn" id="newChatBtn" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M19,13H13V19H11V13H5V11H11V5H13V11H19V13Z"/>
-                </svg>
-            </div>
-            
-            <div class="user-account" id="userAccount">
-                <div class="user-info">
-                    <div class="user-name" id="userName">John Doe</div>
-                    <div class="user-status">Online</div>
-                </div>
-                <div class="user-avatar" id="userAvatar">JD</div>
-                
-                <div class="account-dropdown" id="accountDropdown">
-                    <div class="dropdown-item" onclick="editProfile()">Edit Profile</div>
-                    <div class="dropdown-item" onclick="changeSettings()">Settings</div>
-                    <div class="dropdown-item" onclick="logout()">Logout</div>
-                </div>
-            </div>
-        </div>
-        
-        <div class="chat-area">
-            <div class="welcome-message" id="welcomeMessage">
-                What Can I Help You With Today ?
-            </div>
-            
-            <div class="chat-messages" id="chatMessages">
-                <div class="typing-indicator" id="typingIndicator">
-                    <div class="typing-dots">
-                        <span></span>
-                        <span></span>
-                        <span></span>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="input-container">
-                <textarea 
-                    class="chat-input" 
-                    id="chatInput" 
-                    placeholder="Ask Away..."
-                    rows="1"
-                ></textarea>
-                <button class="send-btn" id="sendBtn">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-                        <path d="M2,21L23,12L2,3V10L17,12L2,14V21Z"/>
-                    </svg>
-                </button>
-            </div>
-        </div>
-    </div>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/4.3.0/marked.min.js"></script>
-    <script src="app.js"></script>
-</body>
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>RAG Chatbot Web Application</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
 </html>

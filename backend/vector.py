@@ -10,7 +10,7 @@ import fitz  # PyMuPDF for PDFs
 from docx import Document  # python-docx for Word documents
 import pandas as pd  # for CSV/Excel files
 from sentence_transformers import SentenceTransformer
-from qdrant_client import QdrantClient  
+from qdrant_client import QdrantClient
 from qdrant_client.http.models import (
     Distance, VectorParams, PointStruct, Filter,
     FieldCondition, MatchValue, UpdateStatus
@@ -27,13 +27,12 @@ class QdrantManager:
     """
 
     def __init__(self,
-                 collection_name: str = None,
+                 collection_name: Optional[str] = None,
                  embedding_model: str = "all-MiniLM-L6-v2",
-                 qdrant_url: str = None,
-                 qdrant_api_key: str = None):
+                 qdrant_url: Optional[str] = None,
+                 qdrant_api_key: Optional[str] = None):
         """
         Initialize Qdrant Manager
-
         Args:
             collection_name: Name of Qdrant collection
             embedding_model: Sentence transformer model name
@@ -43,50 +42,62 @@ class QdrantManager:
         self.collection_name = collection_name or f"documents_{int(datetime.now().timestamp())}"
         self.embedding_model = SentenceTransformer(embedding_model)
         self.embedding_dim = self.embedding_model.get_sentence_embedding_dimension()
-        qdrant_url="https://488362f3-c049-424d-8c30-f08b860e85a4.eu-west-1-0.aws.cloud.qdrant.io"
-        qdrant_api_key="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhY2Nlc3MiOiJtIn0.OxeUur4QZIrKbs4l-Et-r6x62pIYDcXOhAsJNGTtza8"
-        # Qdrant connection details
+        qdrant_url="https://c241a3b3-fb32-4701-b0c3-72dfba20386d.us-west-2-0.aws.cloud.qdrant.io:6333"
+        qdrant_api_key="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhY2Nlc3MiOiJtIn0.I_PwJY6RlIjELLItx4FyZyF6tLORWcW0Mh9lJwehL8w"
+
+        # Setup Qdrant connection details
         self.qdrant_url = qdrant_url or os.getenv("QDRANT_URL", "http://localhost:6333").rstrip("/")
         if self.qdrant_url.startswith("https://") and self.qdrant_url.endswith(":6333"):
             self.qdrant_url = self.qdrant_url.replace(":6333", "")
 
         self.qdrant_api_key = qdrant_api_key or os.getenv("QDRANT_API_KEY")
 
-        # Initialize connection
+        # Initialize connection and collection
         self.client = None
         self._setup_connection()
         self._setup_collection()
 
     def _setup_connection(self):
-        """Initialize Qdrant client connection"""
+        """Initialize Qdrant client connection with timeout handling"""
         try:
             print(f"Connecting to Qdrant at: {self.qdrant_url}")
-
+            
             if self.qdrant_api_key:
                 self.client = QdrantClient(
                     url=self.qdrant_url,
-                    api_key=self.qdrant_api_key
+                    api_key=self.qdrant_api_key,
+                    timeout=30.0,  # Add timeout
+                    prefer_grpc=False  # Use HTTP instead of gRPC
                 )
             else:
-                self.client = QdrantClient(url=self.qdrant_url)
+                self.client = QdrantClient(
+                    url=self.qdrant_url,
+                    timeout=30.0,
+                    prefer_grpc=False
+                )
 
             # Test connection
             collections = self.client.get_collections()
-            print(f"Connected successfully. Found {len(collections.collections)} collections")
-
+            print(f"✅ Connected successfully. Found {len(collections.collections)} collections")
+            
         except Exception as e:
-            print(f"Failed to connect to Qdrant: {e}")
-            raise
+            print(f"❌ Failed to connect to Qdrant: {e}")
+            # Don't raise exception - allow graceful degradation
+            self.client = None
 
     def _setup_collection(self):
         """Create or verify collection setup"""
+        if not self.client:
+            print("⚠️ Skipping collection setup - no Qdrant connection")
+            return
+            
         try:
             # Check if collection exists
             try:
                 collection_info = self.client.get_collection(self.collection_name)
                 print(f"Using existing collection: {self.collection_name}")
                 return
-            except:
+            except Exception:
                 pass  # Collection doesn't exist, create it
 
             # Create new collection
@@ -99,13 +110,13 @@ class QdrantManager:
                 )
             )
             print(f"Collection '{self.collection_name}' created successfully")
-
+            
         except Exception as e:
             print(f"Failed to setup collection: {e}")
-            raise
+            self.client = None
 
     def _split_text_into_chunks(self, text: str, chunk_size: int = 500) -> List[str]:
-        """Split text into smaller chunks"""
+        """Split text into smaller chunks for better processing"""
         words = text.split()
         chunks = []
         current_chunk = []
@@ -114,7 +125,7 @@ class QdrantManager:
         for word in words:
             current_chunk.append(word)
             current_length += len(word) + 1
-
+            
             if current_length >= chunk_size:
                 chunk_text = " ".join(current_chunk)
                 if len(chunk_text.strip()) > 50:
@@ -135,16 +146,16 @@ class QdrantManager:
         try:
             doc = fitz.open(pdf_path)
             all_chunks = []
-
+            
             for page_num in range(len(doc)):
                 page = doc.load_page(page_num)
                 text = page.get_text()
-
+                
                 if not text.strip():
                     continue
-
+                    
                 chunks = self._split_text_into_chunks(text)
-                for i, chunk in enumerate(chunks):
+                for chunk in chunks:
                     all_chunks.append({
                         'text': chunk,
                         'source': os.path.basename(pdf_path),
@@ -152,10 +163,10 @@ class QdrantManager:
                         'page': page_num + 1,
                         'chunk_id': len(all_chunks)
                     })
-
+            
             doc.close()
             return all_chunks
-
+            
         except Exception as e:
             print(f"Error processing PDF {pdf_path}: {e}")
             return []
@@ -193,9 +204,8 @@ class QdrantManager:
                     'file_type': 'docx',
                     'chunk_id': i
                 })
-
             return result
-
+            
         except Exception as e:
             print(f"Error processing DOCX {docx_path}: {e}")
             return []
@@ -205,12 +215,13 @@ class QdrantManager:
         try:
             with open(txt_path, 'r', encoding='utf-8', errors='ignore') as file:
                 content = file.read()
-
+                
             if not content.strip():
                 return []
-
+                
             chunks = self._split_text_into_chunks(content)
             result = []
+            
             for i, chunk in enumerate(chunks):
                 result.append({
                     'text': chunk,
@@ -218,9 +229,8 @@ class QdrantManager:
                     'file_type': 'txt',
                     'chunk_id': i
                 })
-
             return result
-
+            
         except Exception as e:
             print(f"Error processing TXT {txt_path}: {e}")
             return []
@@ -230,10 +240,14 @@ class QdrantManager:
         try:
             df = pd.read_csv(csv_path)
             chunks = []
-
+            
             for idx, row in df.iterrows():
-                row_text = " | ".join([f"{col}: {str(val)}" for col, val in row.items() if pd.notna(val)])
-
+                row_text = " | ".join([
+                    f"{col}: {str(val)}" 
+                    for col, val in row.items() 
+                    if pd.notna(val)
+                ])
+                
                 if len(row_text.strip()) > 20:
                     chunks.append({
                         'text': row_text,
@@ -242,9 +256,8 @@ class QdrantManager:
                         'row_number': idx + 1,
                         'chunk_id': len(chunks)
                     })
-
             return chunks
-
+            
         except Exception as e:
             print(f"Error processing CSV {csv_path}: {e}")
             return []
@@ -279,7 +292,7 @@ class QdrantManager:
 
             extract_from_obj(data)
             return chunks
-
+            
         except Exception as e:
             print(f"Error processing JSON {json_path}: {e}")
             return []
@@ -288,19 +301,18 @@ class QdrantManager:
         """Process a file based on its extension"""
         file_path = Path(file_path)
         extension = file_path.suffix.lower()
-
         print(f"Processing {extension} file: {file_path.name}")
 
-        if extension == '.pdf':
-            return self.extract_text_from_pdf(str(file_path))
-        elif extension == '.docx':
-            return self.extract_text_from_docx(str(file_path))
-        elif extension == '.txt':
-            return self.extract_text_from_txt(str(file_path))
-        elif extension == '.csv':
-            return self.extract_text_from_csv(str(file_path))
-        elif extension == '.json':
-            return self.extract_text_from_json(str(file_path))
+        processors = {
+            '.pdf': self.extract_text_from_pdf,
+            '.docx': self.extract_text_from_docx,
+            '.txt': self.extract_text_from_txt,
+            '.csv': self.extract_text_from_csv,
+            '.json': self.extract_text_from_json
+        }
+
+        if extension in processors:
+            return processors[extension](str(file_path))
         else:
             print(f"Unsupported file type: {extension}")
             return []
@@ -311,6 +323,10 @@ class QdrantManager:
             print("No chunks to store")
             return False
 
+        if not self.client:
+            print("❌ Cannot store documents - no Qdrant connection")
+            return False
+
         try:
             # Generate embeddings
             print("Generating embeddings...")
@@ -319,7 +335,7 @@ class QdrantManager:
 
             # Prepare points for insertion
             points = []
-            for i, (chunk, embedding) in enumerate(zip(chunks, embeddings)):
+            for chunk, embedding in zip(chunks, embeddings):
                 point = PointStruct(
                     id=str(uuid.uuid4()),
                     vector=embedding.tolist(),
@@ -336,24 +352,28 @@ class QdrantManager:
                     points=batch_points,
                     wait=True
                 )
-
+                
                 if result.status != UpdateStatus.COMPLETED:
-                    print(f"Failed to store batch {i//batch_size + 1}")
+                    print(f"Failed to store batch {i // batch_size + 1}")
                     return False
 
-            print(f"Successfully stored all {len(points)} documents")
+            print(f"✅ Successfully stored all {len(points)} documents")
             return True
-
+            
         except Exception as e:
             print(f"Storage operation failed: {e}")
             return False
 
     def search(self,
-              query: str,
-              limit: int = 5,
-              score_threshold: float = None,
-              filter_conditions: Dict = None) -> List[Dict]:
+               query: str,
+               limit: int = 5,
+               score_threshold: Optional[float] = None,
+               filter_conditions: Optional[Dict] = None) -> List[Dict]:
         """Search for similar documents"""
+        if not self.client:
+            print("⚠️ Cannot search - no Qdrant connection")
+            return []
+            
         try:
             # Generate query embedding
             query_vector = self.embedding_model.encode([query])[0]
@@ -391,20 +411,22 @@ class QdrantManager:
                     'file_type': hit.payload.get('file_type', ''),
                     'metadata': hit.payload
                 })
-
             return results
-
+            
         except Exception as e:
             print(f"Search failed: {e}")
             return []
 
+
 def main():
+    """Main function for testing the QdrantManager"""
     print("Qdrant Manager - Interactive Mode")
     print("=" * 40)
 
     collection_name = "docs"
     manager = QdrantManager(collection_name=collection_name)
-    
+
+    # Example file processing
     file_path = "/content/DelayLossThroughput_4.pdf"
     if file_path and os.path.exists(file_path):
         chunks = manager.process_file(file_path)
@@ -416,27 +438,29 @@ def main():
     else:
         print("File not found or invalid path.")
 
+    # Interactive search
     query = input("Enter your search query: ").strip()
     if query:
         limit = 5
         results = manager.search(query, limit=limit)
-        # ... rest of the search display code
-
+        
         if results:
-                print(f"\nFound {len(results)} results:")
+            print(f"\nFound {len(results)} results:")
+            print("-" * 60)
+            for i, result in enumerate(results, 1):
+                print(f"{i}. ID: {result['id']}")
+                print(f"   Score: {result['score']:.3f}")
+                print(f"   Source: {result['source']} ({result['file_type']})")
+                print(f"   Text: {result['text'][:200]}...")
                 print("-" * 60)
-                for i, result in enumerate(results, 1):
-                    print(f"{i}. ID: {result['id']}")
-                    print(f"   Score: {result['score']:.3f}")
-                    print(f"   Source: {result['source']} ({result['file_type']})")
-                    print(f"   Text: {result['text'][:200]}...")
-                    print("-" * 60)
-
-                    # Store results for potential updates/deletes
-                    globals()['last_search_results'] = results
+            
+            # Store results for potential future use
+            globals()['last_search_results'] = results
         else:
-                    print("No results found.")
+            print("No results found.")
     else:
         print("Please enter a search query.")
+
+
 if __name__ == "__main__":
     main()

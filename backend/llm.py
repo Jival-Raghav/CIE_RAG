@@ -13,12 +13,9 @@ class MistralLLM:
     Takes search results and generates contextual responses
     """
     
-    def __init__(self, 
-                 mistral_api_key: str = None,
-                 model_name: str = "mistral-small-latest"):
+    def __init__(self, mistral_api_key: str = None, model_name: str = "mistral-small-latest"):
         """
         Initialize Mistral LLM
-        
         Args:
             mistral_api_key: Mistral API key (if None, uses env variable)
             model_name: Mistral model to use
@@ -33,14 +30,12 @@ class MistralLLM:
             "Content-Type": "application/json",
             "Authorization": f"Bearer {self.mistral_api_key}"
         }
-    
+
     def format_context(self, search_results: List[Dict]) -> str:
         """
         Format search results into context string
-        
         Args:
             search_results: List of search results from vector database
-            
         Returns:
             Formatted context string
         """
@@ -64,15 +59,13 @@ class MistralLLM:
             context_parts.append(f"Context {i}:\n{source_info}\nContent: {result['text']}\n")
         
         return "\n".join(context_parts)
-    
+
     def create_prompt(self, query: str, context: str) -> str:
         """
         Create a prompt combining query and context
-        
         Args:
             query: User's question
             context: Retrieved context from vector database
-            
         Returns:
             Formatted prompt string
         """
@@ -91,10 +84,7 @@ Instructions:
 - Keep your response focused and relevant to the question
 
 Answer:"""
-        
-    
         return prompt
-    
 
     def create_prompt_with_history(self, history: List[Dict], context: str) -> str:
         """
@@ -106,9 +96,8 @@ Answer:"""
             role = msg['role'].capitalize()
             content = msg['content']
             history_str += f"{role}: {content}\n"
-
-        prompt = f"""
-You are an AI assistant helping the user based on the ongoing conversation and the context provided.
+        
+        prompt = f"""You are an AI assistant helping the user based on the ongoing conversation and the context provided.
 
 Context:
 {context}
@@ -116,25 +105,19 @@ Context:
 Conversation so far:
 {history_str}
 
-Answer the user’s latest message clearly and concisely, based only on the above information.
-If you’re unsure, say so.
+Answer the user's latest message clearly and concisely, based only on the above information.
+If you're unsure, say so.
 
 Answer:"""
-
         return prompt.strip()
 
-
-    def call_api(self, prompt: str, 
-                 max_tokens: int = 1000,
-                 temperature: float = 0.1) -> str:
+    def call_api(self, prompt: str, max_tokens: int = 1000, temperature: float = 0.1) -> str:
         """
         Call Mistral API with the prompt
-        
         Args:
             prompt: The formatted prompt
             max_tokens: Maximum tokens in response
             temperature: Creativity/randomness (0.0 to 1.0)
-            
         Returns:
             LLM response text
         """
@@ -159,7 +142,6 @@ Answer:"""
             )
             
             response.raise_for_status()
-            
             response_data = response.json()
             return response_data["choices"][0]["message"]["content"].strip()
             
@@ -169,21 +151,16 @@ Answer:"""
             return f"Error parsing API response: {str(e)}"
         except Exception as e:
             return f"Unexpected error: {str(e)}"
-    
-    def generate_response(self, 
-                         query: str,
-                         search_results: List[Dict],
-                         max_tokens: int = 1000,
-                         temperature: float = 0.1) -> str:
+
+    def generate_response(self, query: str, search_results: List[Dict], 
+                         max_tokens: int = 1000, temperature: float = 0.1) -> str:
         """
         Generate response from query and search results
-        
         Args:
             query: User's question
             search_results: List of search results from vector database
             max_tokens: Maximum tokens in LLM response
             temperature: LLM temperature setting
-            
         Returns:
             Generated response string
         """
@@ -205,38 +182,37 @@ Answer:"""
         
         return response
 
-# Convenience functions for direct usage
-def generate_response_from_results(query: str, 
-                                 search_results: List[Dict],
-                                 mistral_api_key: str = None,
-                                 max_tokens: int = 1000,
-                                 temperature: float = 0.1) -> str:
-    """
-    Generate response directly from search results (convenience function)
-    
-    Args:
-        query: User's question
-        search_results: List of search results from vector database
-        mistral_api_key: Mistral API key (optional)
-        max_tokens: Maximum tokens in response
-        temperature: Temperature setting
+    def generate_response_with_history(self, query: str, search_results: List[Dict], 
+                                     chat_history: List[Dict], max_tokens: int = 1000, 
+                                     temperature: float = 0.1) -> str:
+        """
+        Generate response with chat history context
+        Args:
+            query: User's current question
+            search_results: List of search results from vector database
+            chat_history: Previous conversation history
+            max_tokens: Maximum tokens in LLM response
+            temperature: LLM temperature setting
+        Returns:
+            Generated response string
+        """
+        # Format context from search results
+        context = self.format_context(search_results)
         
-    Returns:
-        Generated response string
-    """
-    llm = MistralLLM(mistral_api_key=mistral_api_key)
-    return llm.generate_response(query, search_results, max_tokens, temperature)
-
-def format_search_results(search_results: List[Dict]) -> str:
-    """
-    Just format search results into context (utility function)
-    
-    Args:
-        search_results: List of search results from vector database
+        # Add current query to history
+        current_history = chat_history + [{"role": "user", "content": query}]
         
-    Returns:
-        Formatted context string
-    """
-    llm = MistralLLM()
-    return llm.format_context(search_results)
+        # Create prompt with history
+        prompt = self.create_prompt_with_history(current_history, context)
+        
+        # Generate response
+        response = self.call_api(
+            prompt=prompt,
+            max_tokens=max_tokens,
+            temperature=temperature
+        )
+        
+        return response
 
+# Create global instance
+mistral_llm = MistralLLM()

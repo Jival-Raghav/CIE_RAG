@@ -1,0 +1,5 @@
+kafka
+|_ library
+   |_ CRD topics
+   |_ producer
+   |_ consumer

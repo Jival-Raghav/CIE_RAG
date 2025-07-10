@@ -1,0 +1,4 @@
+response generator
+|_ docker
+|_ context retriever
+|_ responseGen

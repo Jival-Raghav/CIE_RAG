@@ -24,6 +24,7 @@ faiss-cpu
 llama-index
 numpy
 pandas
+better-profanity
 
 ```
 Then run the following code 

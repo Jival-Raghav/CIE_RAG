@@ -11,5 +11,5 @@ def check_profanity(text):
     if profanity.contains_profanity(text):
         print("Profanity detected!")
         print(profanity.censor(text))  # You are a **** fool.
-        return 
+        return True
     return False
